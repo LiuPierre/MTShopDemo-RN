@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useAppState } from '../context/AppStateContext';
 import { cartItemTotal } from '../models/Product';
 import { COLORS } from '../utils/colors';
+import { trackCheckoutStep, trackOrderPlaced } from '../analytics/amplitude';
 
 type RootStackParamList = {
   OrderSuccess: undefined;
@@ -44,12 +45,23 @@ export default function CheckoutScreen() {
   const [selectedPayment, setSelectedPayment] = useState(0);
   const [placing, setPlacing] = useState(false);
 
+  // Track each checkout step as it becomes active
+  useEffect(() => {
+    trackCheckoutStep(step + 1, STEPS[step]);
+  }, [step]);
+
   const handleNext = async () => {
     if (step < 2) {
       setStep(step + 1);
     } else {
       setPlacing(true);
       await new Promise((r) => setTimeout(r, 2000));
+      trackOrderPlaced({
+        total: state.cartTotal + shipping,
+        item_count: state.cart.reduce((sum, i) => sum + i.quantity, 0),
+        payment_method: PAYMENTS[selectedPayment].label,
+        delivery_address: ADDRESSES[selectedAddress].name,
+      });
       state.clearCart();
       setPlacing(false);
       navigation.dispatch(

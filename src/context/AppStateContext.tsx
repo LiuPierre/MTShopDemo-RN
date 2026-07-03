@@ -1,6 +1,11 @@
 import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
 import { Product, CartItem, cartItemTotal } from '../models/Product';
 import { kProducts } from '../data/products';
+import {
+  trackAddToCart,
+  trackRemoveFromCart,
+  trackFavoriteToggled,
+} from '../analytics/amplitude';
 
 interface AppStateContextType {
   products: Product[];
@@ -58,18 +63,37 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const toggleFavorite = useCallback((productId: string) => {
-    setAllProductsList((prev) =>
-      prev.map((p) => (p.id === productId ? { ...p, isFavorite: !p.isFavorite } : p))
-    );
+    setAllProductsList((prev) => {
+      const updated = prev.map((p) =>
+        p.id === productId ? { ...p, isFavorite: !p.isFavorite } : p
+      );
+      const changed = updated.find((p) => p.id === productId);
+      if (changed) {
+        trackFavoriteToggled({
+          product_id: changed.id,
+          product_name: changed.name,
+          is_favorite: changed.isFavorite,
+        });
+      }
+      return updated;
+    });
   }, []);
 
   const addToCart = useCallback((product: Product) => {
     setCart((prev) => {
       const existing = prev.find((item) => item.product.id === product.id);
+      const newQuantity = existing ? existing.quantity + 1 : 1;
+      trackAddToCart({
+        product_id: product.id,
+        product_name: product.name,
+        category: product.category,
+        price: product.price,
+        quantity: newQuantity,
+      });
       if (existing) {
         return prev.map((item) =>
           item.product.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
+            ? { ...item, quantity: newQuantity }
             : item
         );
       }
@@ -78,7 +102,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const removeFromCart = useCallback((productId: string) => {
-    setCart((prev) => prev.filter((item) => item.product.id !== productId));
+    setCart((prev) => {
+      const item = prev.find((i) => i.product.id === productId);
+      if (item) {
+        trackRemoveFromCart({
+          product_id: item.product.id,
+          product_name: item.product.name,
+        });
+      }
+      return prev.filter((i) => i.product.id !== productId);
+    });
   }, []);
 
   const updateQuantity = useCallback((productId: string, quantity: number) => {

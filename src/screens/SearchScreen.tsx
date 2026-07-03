@@ -16,6 +16,7 @@ import { useAppState } from '../context/AppStateContext';
 import { Product } from '../models/Product';
 import ProductCard from '../components/ProductCard';
 import { COLORS } from '../utils/colors';
+import { trackSearch } from '../analytics/amplitude';
 
 const POPULAR_SEARCHES = ['Headphones', 'Sneakers', 'Hoodie', 'Watch', 'Bag', 'Candle'];
 
@@ -53,6 +54,15 @@ export default function SearchScreen() {
         );
       })
     : [];
+
+  // Track search with a small debounce so we don't fire on every keystroke
+  useEffect(() => {
+    if (!query) return;
+    const timer = setTimeout(() => {
+      trackSearch(query, results.length);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [query, results.length]);
 
   const handleProductTap = (product: Product) => {
     navigation.navigate('ProductDetail', { productId: product.id });

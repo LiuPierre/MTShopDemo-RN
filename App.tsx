@@ -1,7 +1,7 @@
 import 'react-native-gesture-handler';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, NavigationContainerRef } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 
 import { AppStateProvider, useAppState } from './src/context/AppStateContext';
+import { initAmplitude, identifyUser, trackScreen } from './src/analytics/amplitude';
 import HomeScreen from './src/screens/HomeScreen';
 import FavoritesScreen from './src/screens/FavoritesScreen';
 import CartScreen from './src/screens/CartScreen';
@@ -176,11 +177,60 @@ function RootNavigator() {
 
 // ─── App root ─────────────────────────────────────────────────────────────────
 
+// Maps navigation route names to human-readable screen names for Amplitude
+const SCREEN_NAMES: Record<string, string> = {
+  Root: 'Home',
+  Home: 'Home',
+  Favorites: 'Favorites',
+  CartTab: 'Cart',
+  Profile: 'Profile',
+  ProductDetail: 'Product Detail',
+  Cart: 'Cart',
+  Search: 'Search',
+  Checkout: 'Checkout',
+  OrderSuccess: 'Order Success',
+};
+
+function getActiveRouteName(
+  state: ReturnType<NavigationContainerRef<any>['getState']>
+): string {
+  if (!state) return '';
+  const route = state.routes[state.index ?? 0];
+  if (route.state) return getActiveRouteName(route.state as any);
+  return route.name;
+}
+
 export default function App() {
+  const navigationRef = useRef<NavigationContainerRef<any>>(null);
+  const routeNameRef = useRef<string>('');
+
+  useEffect(() => {
+    initAmplitude();
+    // Set a static demo user identity (replace with real auth when available)
+    identifyUser('user_florian_dupire', 'Florian Dupire');
+  }, []);
+
   return (
     <SafeAreaProvider>
       <AppStateProvider>
-        <NavigationContainer>
+        <NavigationContainer
+          ref={navigationRef}
+          onReady={() => {
+            const state = navigationRef.current?.getState();
+            const name = getActiveRouteName(state);
+            routeNameRef.current = name;
+            trackScreen(SCREEN_NAMES[name] ?? name);
+          }}
+          onStateChange={() => {
+            const state = navigationRef.current?.getState();
+            const currentName = getActiveRouteName(state);
+            const previousName = routeNameRef.current;
+            if (currentName !== previousName) {
+              trackScreen(SCREEN_NAMES[currentName] ?? currentName);
+              routeNameRef.current = currentName;
+            }
+          }}
+        >
           <StatusBar style="dark" />
           <RootNavigator />
         </NavigationContainer>

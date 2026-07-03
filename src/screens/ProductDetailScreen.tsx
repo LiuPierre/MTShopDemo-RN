@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useAppState } from '../context/AppStateContext';
 import { isOnSale, discountPercent } from '../models/Product';
 import { productColor, productIconName } from '../utils/productColors';
 import { COLORS } from '../utils/colors';
+import { trackProductViewed } from '../analytics/amplitude';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +49,18 @@ export default function ProductDetailScreen() {
   const showSizeSelector =
     product.category === 'Clothing' || product.category === 'Shoes';
   const inCart = state.isInCart(product.id);
+
+  // Track product view once per mount
+  useEffect(() => {
+    trackProductViewed({
+      product_id: product.id,
+      product_name: product.name,
+      category: product.category,
+      price: product.price,
+      is_on_sale: onSale,
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
 
   const handleAddToCart = () => {
     state.addToCart(product);
